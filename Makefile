@@ -63,7 +63,12 @@ Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim_ex.c \
 Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_core.c \
 Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ctlreq.c \
 Middlewares/ST/STM32_USB_Device_Library/Core/Src/usbd_ioreq.c \
-Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Src/usbd_customhid.c
+Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Src/usbd_customhid.c \
+DAP/DAP_vendor.c \
+DAP/JTAG_DP.c \
+DAP/SW_DP.c \
+DAP/DAP.c \
+DAP/SWO.c
 
 # ASM sources
 ASM_SOURCES =  \
@@ -128,7 +133,8 @@ C_INCLUDES =  \
 -IMiddlewares/ST/STM32_USB_Device_Library/Core/Inc \
 -IMiddlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc \
 -IDrivers/CMSIS/Device/ST/STM32F1xx/Include \
--IDrivers/CMSIS/Include
+-IDrivers/CMSIS/Include \
+-IDAP
 
 
 # compile gcc flags

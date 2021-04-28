@@ -42,6 +42,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32_daplink_hid/Drivers/CMSIS/Device/ST/STM32F1xx/Include}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32_daplink_hid/Middlewares/ST/STM32_USB_Device_Library/Core/Inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32_daplink_hid/Middlewares/ST/STM32_USB_Device_Library/Class/CustomHID/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/stm32_daplink_hid/DAP}&quot;"/>
 								</option>
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.c.5958738" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.c"/>
 								<inputType id="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.s.562479047" superClass="fr.ac6.managedbuild.tool.gnu.cross.c.compiler.input.s"/>
