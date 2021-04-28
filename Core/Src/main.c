@@ -23,7 +23,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "DAP.h"
+#include "DAP_config.h"
+#include "usbd_custom_hid_if.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,7 +45,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+static uint32_t CommonIndex;
+static uint32_t ResponseIndexSend;
+static uint32_t ResponsePendingCount;
+volatile uint32_t RequestPendingCount;
+extern USBD_HandleTypeDef hUsbDeviceFS;
+extern volatile uint32_t RequestPauseProcessing;
+uint8_t USB_DAP_Requests[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
+uint8_t USB_DAP_Responses[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -55,7 +64,7 @@ static void MX_GPIO_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static void Send_USB_DAP_Response(void);
 /* USER CODE END 0 */
 
 /**
@@ -65,7 +74,7 @@ static void MX_GPIO_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+	uint32_t skip_sending_response;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -81,20 +90,62 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+	CommonIndex = 0;
+	ResponseIndexSend = 0;
+	ResponsePendingCount = 0;
+	RequestPendingCount = 0;
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
-
+	DAP_Setup();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  /* Cortex-M0 does not support synchronizing instructions.
+	   * RequestPendingCount variable has a potential racing condition.
+	   * Disabling interrupts while update is a choice.
+	   * Systick interrupt will cause wakeup in case of out of sync between
+	   * USB interrupt and WFI call here. */
+	  if (RequestPendingCount == 0) {
+		  __WFI();
+	  }
+
+	  while ((RequestPendingCount > 0) && (ResponsePendingCount < DAP_PACKET_COUNT)) {
+		  if (USB_DAP_Requests[CommonIndex][0] == ID_DAP_QueueCommands) {
+			  // Pause request processing until all queue commands are received.
+			  if (RequestPauseProcessing)
+				  break;
+
+			  USB_DAP_Requests[CommonIndex][0] = ID_DAP_ExecuteCommands;
+
+			  // Avoid sending usb response during processing queued commands.
+			  skip_sending_response = 1;
+		  } else {
+			  skip_sending_response = 0;
+		  }
+
+		  DAP_ExecuteCommand(USB_DAP_Requests[CommonIndex], USB_DAP_Responses[CommonIndex]);
+
+		  RequestPendingCount--;
+		  ResponsePendingCount++;
+		  CommonIndex++;
+		  if (CommonIndex >= DAP_PACKET_COUNT) {
+			  CommonIndex = 0;
+		  }
+
+		  if (skip_sending_response == 0)
+			  Send_USB_DAP_Response();
+	  }
+
+	  if (ResponsePendingCount > 0) {
+		  Send_USB_DAP_Response();
+	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -221,7 +272,17 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void Send_USB_DAP_Response(void) {
+	USBD_CUSTOM_HID_HandleTypeDef *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
+	if (hhid->state == CUSTOM_HID_IDLE) {
+		USBD_CUSTOM_HID_SendReport(&hUsbDeviceFS, USB_DAP_Responses[ResponseIndexSend], DAP_PACKET_SIZE);
+		ResponseIndexSend++;
+		if (ResponseIndexSend >= DAP_PACKET_COUNT) {
+			ResponseIndexSend = 0;
+		}
+		ResponsePendingCount--;
+	}
+}
 /* USER CODE END 4 */
 
 /**

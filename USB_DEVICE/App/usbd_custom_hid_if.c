@@ -23,7 +23,8 @@
 #include "usbd_custom_hid_if.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "DAP.h"
+#include "DAP_config.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,13 +93,38 @@
 __ALIGN_BEGIN static uint8_t CUSTOM_HID_ReportDesc_FS[USBD_CUSTOM_HID_REPORT_DESC_SIZE] __ALIGN_END =
 {
   /* USER CODE BEGIN 0 */
-  0x00,
+  /* A minimal Report Desc with INPUT/OUTPUT/FEATURE report. Zach Lee */
+  0x06, 0x00, 0xFF,		/* Usage Page (vendor defined) ($FF00) global */
+  0x09, 0x01,			/* Usage (vendor defined) ($01) local */
+  0xA1, 0x01,			/* Collection (Application) */
+  0x15, 0x00,			/* LOGICAL_MINIMUM (0) */
+  0x25, 0xFF,			/* LOGICAL_MAXIMUM (255) */
+  0x75, 0x08,			/* REPORT_SIZE (8bit) */
+
+  // Input Report
+  0x95, 0x40,			/* Report Length (64 REPORT_SIZE) */
+  0x09, 0x01,			/* USAGE (Vendor Usage 1) */
+  0x81, 0x02,			/* Input(data,var,absolute) */
+
+  // Output Report
+  0x95, 0x40,			/* Report Length (64 REPORT_SIZE) */
+  0x09, 0x01,			/* USAGE (Vendor Usage 1) */
+  0x91, 0x02,			/* Output(data,var,absolute) */
+
+  // Feature Report
+  0x95, 0x40,			/* Report Length (64 REPORT_SIZE) */
+  0x09, 0x01,			/* USAGE (Vendor Usage 1) */
+  0xB1, 0x02,			/* Feature(data,var,absolute) */
   /* USER CODE END 0 */
   0xC0    /*     END_COLLECTION	             */
 };
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
-
+volatile uint32_t RequestPauseProcessing;
+extern volatile uint8_t DAP_TransferAbort;
+extern volatile uint32_t RequestPendingCount;
+static volatile uint32_t RequestIndexPending;
+extern uint8_t USB_DAP_Requests[DAP_PACKET_COUNT][DAP_PACKET_SIZE];
 /* USER CODE END PRIVATE_VARIABLES */
 
 /**
@@ -153,7 +179,9 @@ USBD_CUSTOM_HID_ItfTypeDef USBD_CustomHID_fops_FS =
 static int8_t CUSTOM_HID_Init_FS(void)
 {
   /* USER CODE BEGIN 4 */
-  return (USBD_OK);
+	RequestIndexPending = 0;
+	RequestPauseProcessing = 0;
+	return (USBD_OK);
   /* USER CODE END 4 */
 }
 
@@ -177,7 +205,30 @@ static int8_t CUSTOM_HID_DeInit_FS(void)
 static int8_t CUSTOM_HID_OutEvent_FS(uint8_t event_idx, uint8_t state)
 {
   /* USER CODE BEGIN 6 */
-  return (USBD_OK);
+	USBD_CUSTOM_HID_HandleTypeDef *hhid = (USBD_CUSTOM_HID_HandleTypeDef*)hUsbDeviceFS.pClassData;
+
+	if (hhid->Report_buf[0] == ID_DAP_TransferAbort) {
+		DAP_TransferAbort = 1U;
+		RequestPauseProcessing = 0;
+	} else {
+		if (RequestPendingCount < DAP_PACKET_COUNT) {
+			memcpy(USB_DAP_Requests[RequestIndexPending++], hhid->Report_buf, DAP_PACKET_SIZE);
+			if (RequestIndexPending >= DAP_PACKET_COUNT)
+				RequestIndexPending = 0;
+
+			if (hhid->Report_buf[0] == ID_DAP_QueueCommands)
+				RequestPauseProcessing = 1;
+			else
+				RequestPauseProcessing = 0;
+
+			RequestPendingCount++;
+		} else if (RequestPauseProcessing) {
+			// This will cause deadlock. Host is not honoring packet count limits.
+			// Release pause.
+			RequestPauseProcessing = 0;
+		}
+	}
+	return (USBD_OK);
   /* USER CODE END 6 */
 }
 
